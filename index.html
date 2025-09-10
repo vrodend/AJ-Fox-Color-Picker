@@ -118,6 +118,7 @@
         <div class="form-row"><label>Pattern 3:</label> <input type="number" id="p3"       min="0" max="255" value="0"></div>
         <div class="form-row"><label>Pattern 4:</label> <input type="number" id="p4"       min="0" max="255" value="0"></div>
         <div class="form-row"><label>Eyes:</label>      <input type="number" id="eyes"     min="0" max="255" value="0"></div>
+        <div class="form-row"><label>Room:</label>      <input type="number" id="room"     min="0" max="999999" value="0"></div>
 
         <div class="result" id="result"></div>
       </div>
@@ -144,7 +145,6 @@
       });
     }
 
-    // -------- PALETTE SAMPLER (fixed for your chart) --------
     function paletteSamplerFactory(paletteImg){
       const sampler = document.getElementById('paletteSampler');
       const ctx = sampler.getContext('2d', { willReadFrequently: true });
@@ -154,16 +154,13 @@
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(paletteImg, 0, 0);
 
-      // Your image is a 20x13 grid.
       const COLS = 20, ROWS = 13;
       const cw = sampler.width  / COLS;
       const ch = sampler.height / ROWS;
 
-      // In THIS image, 240 starts at column 2 (there are two extra tiles before it).
-    const LAST_ROW_START_COL = 2;
-    const LAST_ROW_END_COL   = 17;
+      const LAST_ROW_START_COL = 2;
+      const LAST_ROW_END_COL   = 17;
 
-      // sample a 5x5 block near bottom-center to avoid the white numbers
       function sampleCell(col, row){
         const cx = (col + 0.5) * cw;
         const cy = (row + 0.70) * ch;
@@ -175,10 +172,9 @@
         for(let i=0;i<data.length;i+=4){
           const R=data[i], G=data[i+1], B=data[i+2], A=data[i+3];
           const max=Math.max(R,G,B), min=Math.min(R,G,B);
-          // ignore near-white (digits) and near-black (grid/borders)
           if(A>8 && !(max<12 || min>244)){ r+=R; g+=G; b+=B; n++; }
         }
-        if(!n){ // fallback: exact center pixel
+        if(!n){
           const d=ctx.getImageData(Math.round(cx),Math.round(cy),1,1).data;
           r=d[0]; g=d[1]; b=d[2]; n=1;
         }
@@ -186,20 +182,19 @@
         return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
       }
 
-        return function pick(id){
+      return function pick(id){
         id = num(id);
         if(id < 240){
-            const row = (id / 20) | 0;
-            const col = id % 20;
-            return sampleCell(col, row);
+          const row = (id / 20) | 0;
+          const col = id % 20;
+          return sampleCell(col, row);
         } else {
-            const row = 12;
-            let col = LAST_ROW_START_COL + (id - 240);
-            // clamp so 240 → col 2, 255 → col 17
-            col = Math.max(LAST_ROW_START_COL, Math.min(LAST_ROW_END_COL, col));
-            return sampleCell(col, row);
+          const row = 12;
+          let col = LAST_ROW_START_COL + (id - 240);
+          col = Math.max(LAST_ROW_START_COL, Math.min(LAST_ROW_END_COL, col));
+          return sampleCell(col, row);
         }
-        };
+      };
     }
 
     function drawTinted(targetCtx, maskImg, color, blend='source-over'){
@@ -227,9 +222,9 @@
       const ctx      = canvas.getContext('2d');
       ctx.imageSmoothingEnabled = false;
 
-      const inputs = ['primary','secondary','p1','p2','p3','p4','eyes']
+      const inputs = ['primary','secondary','p1','p2','p3','p4','eyes','room']
         .map(id => document.getElementById(id));
-      const [inPrimary,inSecondary,inP1,inP2,inP3,inP4,inEyes] = inputs;
+      const [inPrimary,inSecondary,inP1,inP2,inP3,inP4,inEyes,inRoom] = inputs;
 
       const resultEl = document.getElementById('result');
 
@@ -273,7 +268,6 @@
 
         ctx.clearRect(0,0,canvas.width,canvas.height);
 
-        // paint colors first
         drawTinted(ctx, primaryMask,   colP,  'source-over');
         drawTinted(ctx, secondaryMask, colS,  'source-over');
         drawTinted(ctx, p1Mask,        col1,  'source-over');
@@ -282,11 +276,9 @@
         drawTinted(ctx, p4Mask,        col4,  'source-over');
         drawTinted(ctx, eyesMask,      colEy, 'source-over');
 
-        // shading on top
         ctx.globalCompositeOperation = 'multiply';
         ctx.drawImage(baseImg, 0, 0, canvas.width, canvas.height);
 
-        // highlights/details
         ctx.globalCompositeOperation = 'source-over';
         ctx.drawImage(staticImg, 0, 0, canvas.width, canvas.height);
       }
@@ -305,14 +297,15 @@
         let number3 = (eyes << 24);
         number3 >>>= 0;
 
-        resultEl.textContent = `%xt%o%ap%{room}%${number1}%${number2}%${number3}%1033%`;
+        const room = parseInt(inRoom.value) || 0;
+
+        resultEl.textContent = `%xt%o%ap%${room}%${number1}%${number2}%${number3}%1033%`;
       }
 
       for(const el of inputs){
         el.addEventListener('input', () => { drawFox(); generateNumbers(); });
       }
 
-      // Initial draw on page load
       drawFox();
       generateNumbers();
     })();
